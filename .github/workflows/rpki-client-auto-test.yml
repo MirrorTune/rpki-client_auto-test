@@ -16,9 +16,15 @@ jobs:
       latest: ${{ steps.latest.outputs.latest }}
       should_run: ${{ steps.diff.outputs.should_run }}
     steps:
+      - name: Pre-clean workspace (fix permission issues from previous runs)
+        run: |
+          set -euo pipefail
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+          rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* 2>/dev/null || true
+
       - uses: actions/checkout@v4
-        with:
-          clean: false
 
       - name: Get latest rpki-client-portable release tag
         id: latest
@@ -53,9 +59,15 @@ jobs:
     if: needs.check.outputs.should_run == 'true'
     runs-on: self-hosted
     steps:
+      - name: Pre-clean workspace (fix permission issues from previous runs)
+        run: |
+          set -euo pipefail
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
+          fi
+          rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* 2>/dev/null || true
+
       - uses: actions/checkout@v4
-        with:
-          clean: false
 
       - name: Build docker image for latest version
         run: |
