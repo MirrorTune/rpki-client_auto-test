@@ -20,8 +20,8 @@ jobs:
       - name: Install dependencies (jq, python3)
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y jq python3
+          command -v jq
+          command -v python3
 
       - name: Get latest rpki-client-portable release tag (Releases/latest)
         id: latest
