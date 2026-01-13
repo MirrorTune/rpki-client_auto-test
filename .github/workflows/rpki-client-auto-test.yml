@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   schedule:
     # NOTE: cron is in UTC
-    # Example: every 6 hours
     - cron: "0 */6 * * *"
 
 permissions:
@@ -13,8 +12,6 @@ permissions:
 
 jobs:
   auto-test:
-    # Self-hosted runner (recommended: use labels to pin a specific machine)
-    # If you added a custom label like "rpki-test", keep it here.
     runs-on: [self-hosted, linux, x64, rpki-test]
 
     steps:
@@ -31,6 +28,7 @@ jobs:
           docker --version || true
           jq --version || true
           python3 --version || true
+          sort --version || true
 
       - name: Check dependencies (jq, python3)
         run: |
@@ -88,17 +86,8 @@ jobs:
           set -euo pipefail
           mkdir -p logs
 
-          python3 -c '
-import glob, re
-files = glob.glob("run_*_in_container.sh")
-def key(p):
-    m = re.search(r"run_(\d+)_(\d+)-(\d+)_in_container\.sh$", p)
-    if not m:
-        return (10**9, 10**9, 10**9, p)
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), p)
-for f in sorted(files, key=key):
-    print(f)
-' > _run_list.txt
+          # Create a stable, numeric-friendly order (version sort)
+          printf '%s\n' run_*_in_container.sh | sort -V > _run_list.txt
 
           echo "[INFO] Will run:"
           cat _run_list.txt
