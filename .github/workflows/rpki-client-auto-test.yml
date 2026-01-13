@@ -3,6 +3,8 @@ name: rpki-client auto regression
 on:
   workflow_dispatch:
   schedule:
+    # NOTE: cron is in UTC
+    # Example: every 6 hours
     - cron: "0 */6 * * *"
 
 permissions:
@@ -11,26 +13,30 @@ permissions:
 
 jobs:
   auto-test:
+    # Self-hosted runner (recommended: use labels to pin a specific machine)
+    # If you added a custom label like "rpki-test", keep it here.
     runs-on: [self-hosted, linux, x64, rpki-test]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check dependencies (jq, python3, docker)
+      - name: Show runner info
+        run: |
+          set -euo pipefail
+          hostname
+          uname -a
+          whoami
+          id
+          docker --version || true
+          jq --version || true
+          python3 --version || true
+
+      - name: Check dependencies (jq, python3)
         run: |
           set -euo pipefail
           command -v jq
           command -v python3
-          command -v docker
-          docker --version
-
-      - name: Show runner info
-        run: |
-          set -euo pipefail
-          echo "[INFO] hostname=$(hostname)"
-          echo "[INFO] whoami=$(whoami)"
-          uname -a
 
       - name: Get latest rpki-client-portable release tag (Releases/latest)
         id: latest
@@ -42,7 +48,6 @@ jobs:
             | jq -r '.tag_name')"
           LATEST="${LATEST#v}"
           echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
-          echo "[INFO] latest=${LATEST}"
 
       - name: Read LAST_TESTED_VERSION
         id: last
@@ -54,7 +59,6 @@ jobs:
             LAST=""
           fi
           echo "last=${LAST}" >> "$GITHUB_OUTPUT"
-          echo "[INFO] last=${LAST}"
 
       - name: Decide whether to run tests
         id: diff
