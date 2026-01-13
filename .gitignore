@@ -25,3 +25,12 @@ runs/
 
 # docker leftovers (just in case)
 *.tar
+
+# test outputs (DO NOT COMMIT)
+json-out/
+rsync-out/
+retry-out/
+timeout-out/
+2_2-1_warmup_output/
+*_out/
+*out*/
