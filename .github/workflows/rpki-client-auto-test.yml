@@ -12,12 +12,6 @@ permissions:
   pull-requests: write
   issues: write
 
-# Slack notify settings (rtCamp/action-slack-notify@v2)
-env:
-  SLACK_USERNAME: rpki-client-ci
-  SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-
 jobs:
   auto-test:
     runs-on: self-hosted
@@ -94,13 +88,11 @@ jobs:
           set -euo pipefail
           mkdir -p logs
 
-          # Create a stable, numeric-friendly order (version sort)
           printf '%s\n' run_*_in_container.sh | sort -V > _run_list.txt
 
           echo "[INFO] Will run:"
           cat _run_list.txt
 
-          # Run all tests in order; stop immediately on failure (set -e)
           while IFS= read -r f; do
             if [[ ! -f "$f" ]]; then
               echo "[FAIL] Not found: $f"
@@ -163,35 +155,35 @@ jobs:
       # ----------------------------
 
       - name: Slack Notification (Skipped: no new release)
+        if: ${{ always() && steps.diff.outputs.run != 'true' }}
         uses: rtCamp/action-slack-notify@v2
-        if: ${{ !cancelled() && steps.diff.outputs.run != 'true' }}
         env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: rpki-client-ci
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
           SLACK_COLOR: "#aaaaaa"
-          SLACK_TITLE: "rpki-client auto regression / SKIPPED"
-          SLACK_MESSAGE: |
-            No new release detected, so tests were skipped.
-            latest=${{ steps.latest.outputs.latest }} last=${{ steps.last.outputs.last }}
-            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_TITLE: rpki-client auto regression / SKIPPED
+          SLACK_MESSAGE: "No new release detected, so tests were skipped. latest=${{ steps.latest.outputs.latest }} last=${{ steps.last.outputs.last }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Slack Notification (Success)
+        if: ${{ always() && steps.diff.outputs.run == 'true' && success() }}
         uses: rtCamp/action-slack-notify@v2
-        if: ${{ !cancelled() && steps.diff.outputs.run == 'true' && success() }}
         env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: rpki-client-ci
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
           SLACK_COLOR: good
-          SLACK_TITLE: "rpki-client auto regression / SUCCESS"
-          SLACK_MESSAGE: |
-            Tests completed successfully ?
-            version=${{ steps.latest.outputs.latest }}
-            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_TITLE: rpki-client auto regression / SUCCESS
+          SLACK_MESSAGE: "Tests completed successfully. version=${{ steps.latest.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Slack Notification (Failure)
+        if: ${{ always() && steps.diff.outputs.run == 'true' && failure() }}
         uses: rtCamp/action-slack-notify@v2
-        if: ${{ !cancelled() && steps.diff.outputs.run == 'true' && failure() }}
         env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: rpki-client-ci
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
           SLACK_COLOR: danger
-          SLACK_TITLE: "rpki-client auto regression / FAILURE"
-          SLACK_MESSAGE: |
-            Tests failed ?
-            version=${{ steps.latest.outputs.latest }}
-            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_TITLE: rpki-client auto regression / FAILURE
+          SLACK_MESSAGE: "Tests failed. version=${{ steps.latest.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
