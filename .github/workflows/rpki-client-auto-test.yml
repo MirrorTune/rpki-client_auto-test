@@ -155,7 +155,7 @@ jobs:
     if: ${{ always() }}
 
     steps:
-      - name: Slack Notification (Skipped: no new release)
+      - name: "Slack Notification (Skipped: no new release)"
         if: ${{ needs.auto-test.outputs.run != 'true' }}
         uses: rtCamp/action-slack-notify@v2
         env:
@@ -166,7 +166,7 @@ jobs:
           SLACK_TITLE: "rpki-client auto regression / SKIPPED"
           SLACK_MESSAGE: "No new release detected. latest=${{ needs.auto-test.outputs.latest }} last=${{ needs.auto-test.outputs.last }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      - name: Slack Notification (Success)
+      - name: "Slack Notification (Success)"
         if: ${{ needs.auto-test.outputs.run == 'true' && needs.auto-test.result == 'success' }}
         uses: rtCamp/action-slack-notify@v2
         env:
@@ -177,7 +177,7 @@ jobs:
           SLACK_TITLE: "rpki-client auto regression / SUCCESS"
           SLACK_MESSAGE: "Tests completed successfully. version=${{ needs.auto-test.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      - name: Slack Notification (Failure)
+      - name: "Slack Notification (Failure)"
         if: ${{ needs.auto-test.outputs.run == 'true' && needs.auto-test.result == 'failure' }}
         uses: rtCamp/action-slack-notify@v2
         env:
@@ -187,3 +187,4 @@ jobs:
           SLACK_COLOR: "danger"
           SLACK_TITLE: "rpki-client auto regression / FAILURE"
           SLACK_MESSAGE: "Tests failed. version=${{ needs.auto-test.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
