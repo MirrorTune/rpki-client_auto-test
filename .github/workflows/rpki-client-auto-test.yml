@@ -80,25 +80,22 @@ jobs:
             --build-arg "RPKI_CLIENT_VERSION=${{ steps.latest.outputs.latest }}" \
             -t rpki-client-test:latest .
 
-      - name: Run only run_1_1-1_in_container.sh
+      - name: Run only run_1_1-1_in_container.sh and exit
         if: steps.diff.outputs.run == 'true'
         run: |
           set -euo pipefail
           mkdir -p logs
 
-          TARGET="run_1_1-1_in_container.sh"
-
-          if [[ ! -f "$TARGET" ]]; then
-            echo "[FAIL] Not found: $TARGET"
-            echo "[INFO] Available run_* scripts:"
-            ls -1 run_*_in_container.sh || true
+          f="run_1_1-1_in_container.sh"
+          if [[ ! -f "$f" ]]; then
+            echo "[FAIL] Not found: $f"
             exit 1
           fi
 
-          echo "[INFO] Running: $TARGET"
-          bash "$TARGET" | tee "logs/${TARGET%.sh}.log"
+          echo "[INFO] Running: $f"
+          bash "$f" | tee "logs/${f%.sh}.log"
 
-          echo "[INFO] Done. Stop here intentionally."
+          echo "[INFO] Completed single test ($f). Exiting workflow early as requested."
 
       - name: Upload logs as artifact
         if: steps.diff.outputs.run == 'true'
@@ -106,24 +103,4 @@ jobs:
         with:
           name: rpki-client-test-logs_${{ steps.latest.outputs.latest }}
           path: logs/
-
-      - name: Update LAST_TESTED_VERSION (working tree)
-        if: steps.diff.outputs.run == 'true'
-        run: |
-          set -euo pipefail
-          echo "${{ steps.latest.outputs.latest }}" > LAST_TESTED_VERSION
-
-      - name: Create PR to update LAST_TESTED_VERSION
-        if: steps.diff.outputs.run == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          commit-message: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
-          title: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
-          body: |
-            Automated regression test completed for rpki-client-portable ${{ steps.latest.outputs.latest }}.
-            This PR updates LAST_TESTED_VERSION to record that this version has been tested.
-          branch: "ci/update-last-tested-version"
-          delete-branch: true
-          add-paths: |
-            LAST_TESTED_VERSION
 
