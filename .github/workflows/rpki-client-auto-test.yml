@@ -3,8 +3,6 @@ name: rpki-client auto regression
 on:
   workflow_dispatch:
   schedule:
-    # NOTE: cron is in UTC (no timezone setting)
-    # Run daily at JST 09:00 = UTC 00:00
     - cron: "0 0 * * *"
 
 permissions:
@@ -87,22 +85,22 @@ jobs:
             --build-arg "RPKI_CLIENT_VERSION=${{ steps.latest.outputs.latest }}" \
             -t rpki-client-test:latest .
 
-      - name: Run only run_1_1-1_in_container.sh
+      - name: Run all run_*_in_container.sh in numeric order
         if: ${{ steps.diff.outputs.run == 'true' }}
         run: |
           set -euo pipefail
           mkdir -p logs
-
-          f="run_1_1-1_in_container.sh"
-          if [[ ! -f "$f" ]]; then
-            echo "[FAIL] Not found: $f"
-            exit 1
-          fi
-
-          echo "[INFO] Running: $f"
-          bash "$f" | tee "logs/${f%.sh}.log"
-
-          echo "[INFO] Completed single test ($f)."
+          printf '%s\n' run_*_in_container.sh | sort -V > _run_list.txt
+          echo "[INFO] Will run:"
+          cat _run_list.txt
+          while IFS= read -r f; do
+            if [[ ! -f "$f" ]]; then
+              echo "[FAIL] Not found: $f"
+              exit 1
+            fi
+            echo "[INFO] Running: $f"
+            bash "$f" | tee "logs/${f%.sh}.log"
+          done < _run_list.txt
 
       - name: Upload logs as artifact
         if: ${{ steps.diff.outputs.run == 'true' }}
