@@ -12,6 +12,12 @@ permissions:
   pull-requests: write
   issues: write
 
+# Slack notify settings (rtCamp/action-slack-notify@v2)
+env:
+  SLACK_USERNAME: rpki-client-ci
+  SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+
 jobs:
   auto-test:
     runs-on: self-hosted
@@ -151,4 +157,41 @@ jobs:
               title,
               body
             });
+
+      # ----------------------------
+      # Slack notifications
+      # ----------------------------
+
+      - name: Slack Notification (Skipped: no new release)
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ !cancelled() && steps.diff.outputs.run != 'true' }}
+        env:
+          SLACK_COLOR: "#aaaaaa"
+          SLACK_TITLE: "rpki-client auto regression / SKIPPED"
+          SLACK_MESSAGE: |
+            No new release detected, so tests were skipped.
+            latest=${{ steps.latest.outputs.latest }} last=${{ steps.last.outputs.last }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Slack Notification (Success)
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ !cancelled() && steps.diff.outputs.run == 'true' && success() }}
+        env:
+          SLACK_COLOR: good
+          SLACK_TITLE: "rpki-client auto regression / SUCCESS"
+          SLACK_MESSAGE: |
+            Tests completed successfully ?
+            version=${{ steps.latest.outputs.latest }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Slack Notification (Failure)
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ !cancelled() && steps.diff.outputs.run == 'true' && failure() }}
+        env:
+          SLACK_COLOR: danger
+          SLACK_TITLE: "rpki-client auto regression / FAILURE"
+          SLACK_MESSAGE: |
+            Tests failed ?
+            version=${{ steps.latest.outputs.latest }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
