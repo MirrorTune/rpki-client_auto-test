@@ -3,8 +3,6 @@ name: rpki-client auto regression
 on:
   workflow_dispatch:
   schedule:
-    # NOTE: cron is in UTC (no timezone setting)
-    # Run daily at JST 09:00 = UTC 00:00
     - cron: "0 0 * * *"
 
 permissions:
@@ -92,18 +90,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p logs
-
           printf '%s\n' run_*_in_container.sh | sort -V > _run_list.txt
-
           echo "[INFO] Will run:"
           cat _run_list.txt
-
           while IFS= read -r f; do
             if [[ ! -f "$f" ]]; then
               echo "[FAIL] Not found: $f"
               exit 1
             fi
-
             echo "[INFO] Running: $f"
             bash "$f" | tee "logs/${f%.sh}.log"
           done < _run_list.txt
@@ -170,7 +164,7 @@ jobs:
           SLACK_ICON: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
           SLACK_COLOR: "#aaaaaa"
           SLACK_TITLE: "rpki-client auto regression / SKIPPED"
-          SLACK_MESSAGE: "No new release detected, so tests were skipped. latest=${{ needs.auto-test.outputs.latest }} last=${{ needs.auto-test.outputs.last }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_MESSAGE: "No new release detected. latest=${{ needs.auto-test.outputs.latest }} last=${{ needs.auto-test.outputs.last }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Slack Notification (Success)
         if: ${{ needs.auto-test.outputs.run == 'true' && needs.auto-test.result == 'success' }}
@@ -193,4 +187,3 @@ jobs:
           SLACK_COLOR: "danger"
           SLACK_TITLE: "rpki-client auto regression / FAILURE"
           SLACK_MESSAGE: "Tests failed. version=${{ needs.auto-test.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
