@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   auto-test:
-    runs-on: [self-hosted, linux, x64, rpki-test]
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
