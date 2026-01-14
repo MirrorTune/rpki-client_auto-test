@@ -10,6 +10,8 @@ docker build -t rpki-client-test:latest "${SCRIPT_DIR}"
 echo "[INFO] コンテナ内で 1_1-2_check_rpki_client_version.sh を実行します..."
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   --entrypoint /bin/bash \
   -e RPKI_CLIENT_BIN="${RPKI_CLIENT_BIN:-/usr/local/sbin/rpki-client}" \
   -e EXPECTED_RPKICLIENT_VERSION="${EXPECTED_RPKICLIENT_VERSION:-}" \

@@ -10,6 +10,8 @@ docker build -t rpki-client-test:latest "${SCRIPT_DIR}"
 echo "[INFO] コンテナ内で 2_1-9_check_ntp_sync_failure_detection.sh を実行します."
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   --cap-add NET_ADMIN \
   --cap-add SYS_TIME \
   --entrypoint /bin/bash \

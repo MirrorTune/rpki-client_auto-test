@@ -10,6 +10,8 @@ docker build -t rpki-client-test:latest "${SCRIPT_DIR}"
 echo "[INFO] コンテナ内で 2_2-3_check_crl_validation.sh を実行します..."
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   --entrypoint /bin/bash \
   -e RPKI_CLIENT_BIN="${RPKI_CLIENT_BIN:-/usr/local/sbin/rpki-client}" \
   -e RPKI_CACHE_DIR="${RPKI_CACHE_DIR:-/work/rrdp-cache}" \

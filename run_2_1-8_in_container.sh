@@ -10,6 +10,8 @@ docker build -t rpki-client-test:latest "${SCRIPT_DIR}"
 echo "[INFO] コンテナ内で 2_1-8_check_ntp_time_synchronization.sh を実行します."
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   --cap-add SYS_TIME \
   --entrypoint /bin/bash \
   -e EXPECTED_NTP_SERVERS="${EXPECTED_NTP_SERVERS:-ntp.nict.jp}" \
