@@ -25,9 +25,32 @@ get_offset_from_ntpdate_output() {
   '
 }
 
+apply_block_rule() {
+  # できるだけ互換性の高い形で UDP/123 を遮断する
+  # まずは一般的な --dport を試し、失敗したら --destination-port を試す
+  set +e
+  iptables -I OUTPUT -p udp -m udp --dport 123 -j DROP >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    iptables -I OUTPUT -p udp -m udp --destination-port 123 -j DROP >/dev/null 2>&1
+    rc=$?
+  fi
+  set -e
+
+  return "$rc"
+}
+
+remove_block_rule() {
+  # apply_block_rule() で入れた可能性のあるルールを両方の形式で消す
+  set +e
+  iptables -D OUTPUT -p udp -m udp --dport 123 -j DROP >/dev/null 2>&1 || true
+  iptables -D OUTPUT -p udp -m udp --destination-port 123 -j DROP >/dev/null 2>&1 || true
+  set -e
+}
+
 cleanup() {
   set +e
-  iptables -D OUTPUT -p udp --dport 123 -j DROP >/dev/null 2>&1
+  remove_block_rule
   set -e
 }
 trap cleanup EXIT
@@ -87,8 +110,11 @@ info "選択した同期先: ${SELECTED}"
 pass "事前の疎通確認に成功しました"
 
 warn "NTP(UDP/123) を遮断します"
-iptables -I OUTPUT -p udp --dport 123 -j DROP
-pass "遮断に成功しました"
+if apply_block_rule; then
+  pass "遮断に成功しました"
+else
+  fail "遮断に失敗しました（iptablesの引数互換性/権限を確認してください）"
+fi
 
 set +e
 OUT_BLOCKED="$(timeout "${NTP_TIMEOUT_SEC}" ntpdate -b "${SELECTED}" 2>&1)"
