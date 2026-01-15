@@ -1,0 +1,216 @@
+name: rpki-client auto regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-test:
+    runs-on: self-hosted
+
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+      latest: ${{ steps.latest.outputs.latest }}
+      last: ${{ steps.last.outputs.last }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show runner info
+        run: |
+          set -euo pipefail
+          hostname
+          uname -a
+          whoami
+          id
+          docker --version || true
+          jq --version || true
+          python3 --version || true
+          sort --version || true
+
+      - name: Check dependencies (jq, python3)
+        run: |
+          set -euo pipefail
+          command -v jq
+          command -v python3
+
+      - name: Get latest rpki-client-portable release tag (Releases/latest)
+        id: latest
+        run: |
+          set -euo pipefail
+          LATEST="$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/rpki-client/rpki-client-portable/releases/latest" \
+            | jq -r '.tag_name')"
+          LATEST="${LATEST#v}"
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Read LAST_TESTED_VERSION
+        id: last
+        run: |
+          set -euo pipefail
+          if [[ -f LAST_TESTED_VERSION ]]; then
+            LAST="$(tr -d ' \t\r\n' < LAST_TESTED_VERSION)"
+          else
+            LAST=""
+          fi
+          echo "last=${LAST}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to run tests
+        id: diff
+        run: |
+          set -euo pipefail
+          LATEST="${{ steps.latest.outputs.latest }}"
+          LAST="${{ steps.last.outputs.last }}"
+          if [[ -n "$LAST" && "$LATEST" == "$LAST" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "[INFO] No new release. latest=$LATEST last=$LAST"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "[INFO] New release detected. latest=$LATEST last=$LAST"
+          fi
+
+      - name: Build Docker image (rpki-client-portable = latest)
+        if: ${{ steps.diff.outputs.run == 'true' }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --build-arg "RPKI_CLIENT_VERSION=${{ steps.latest.outputs.latest }}" \
+            -t rpki-client-test:latest .
+
+      - name: Run all run_*_in_container.sh in numeric order
+        if: ${{ steps.diff.outputs.run == 'true' }}
+        env:
+          RPKI_CLIENT_VERSION: ${{ steps.latest.outputs.latest }}
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          printf '%s\n' run_*_in_container.sh | sort -V > _run_list.txt
+          echo "[INFO] Will run:"
+          cat _run_list.txt
+          while IFS= read -r f; do
+            if [[ ! -f "$f" ]]; then
+              echo "[FAIL] Not found: $f"
+              exit 1
+            fi
+            echo "[INFO] Running: $f"
+            bash "$f" | tee "logs/${f%.sh}.log"
+          done < _run_list.txt
+
+      - name: Upload logs as artifact
+        if: ${{ steps.diff.outputs.run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpki-client-test-logs_${{ steps.latest.outputs.latest }}
+          path: logs/
+
+      - name: Update LAST_TESTED_VERSION (working tree)
+        if: ${{ steps.diff.outputs.run == 'true' }}
+        run: |
+          set -euo pipefail
+          echo "${{ steps.latest.outputs.latest }}" > LAST_TESTED_VERSION
+
+      - name: Create PR to update LAST_TESTED_VERSION
+        id: cpr
+        if: ${{ steps.diff.outputs.run == 'true' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
+          title: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
+          body: |
+            Automated regression test completed for rpki-client-portable ${{ steps.latest.outputs.latest }}.
+            This PR updates LAST_TESTED_VERSION to record that this version has been tested.
+          branch: "ci/update-last-tested-version"
+          delete-branch: true
+          add-paths: |
+            LAST_TESTED_VERSION
+
+      - name: Auto-merge PR (update LAST_TESTED_VERSION into main)
+        if: ${{ steps.diff.outputs.run == 'true' && steps.cpr.outputs.pull-request-number != '' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = Number("${{ steps.cpr.outputs.pull-request-number }}");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            core.info(`Merging PR #${prNumber} into main...`);
+
+            try {
+              await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                merge_method: "squash"
+              });
+              core.info(`Merged PR #${prNumber} successfully.`);
+            } catch (e) {
+              core.setFailed(`Failed to merge PR #${prNumber}: ${e.message}`);
+            }
+
+      - name: Create an issue on failure (notification inside GitHub)
+        if: ${{ failure() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `CI failed: rpki-client auto regression (run ${context.runNumber})`;
+            const body =
+              `Workflow run failed.\n\n` +
+              `- Workflow: ${context.workflow}\n` +
+              `- Run: ${runUrl}\n` +
+              `- Ref: ${context.ref}\n` +
+              `- Actor: ${context.actor}\n`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body
+            });
+
+  slack-notify:
+    runs-on: ubuntu-latest
+    needs: auto-test
+    if: ${{ always() }}
+
+    steps:
+      - name: "Slack Notification (Skipped: no new release)"
+        if: ${{ needs.auto-test.outputs.run != 'true' }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: "rpki-client-ci"
+          SLACK_ICON: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          SLACK_COLOR: "#aaaaaa"
+          SLACK_TITLE: "rpki-client auto regression / SKIPPED"
+          SLACK_MESSAGE: "No new release detected. latest=${{ needs.auto-test.outputs.latest }} last=${{ needs.auto-test.outputs.last }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: "Slack Notification (Success)"
+        if: ${{ needs.auto-test.outputs.run == 'true' && needs.auto-test.result == 'success' }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: "rpki-client-ci"
+          SLACK_ICON: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          SLACK_COLOR: "good"
+          SLACK_TITLE: "rpki-client auto regression / SUCCESS"
+          SLACK_MESSAGE: "Tests completed successfully. version=${{ needs.auto-test.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: "Slack Notification (Failure)"
+        if: ${{ needs.auto-test.outputs.run == 'true' && needs.auto-test.result == 'failure' }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_USERNAME: "rpki-client-ci"
+          SLACK_ICON: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          SLACK_COLOR: "danger"
+          SLACK_TITLE: "rpki-client auto regression / FAILURE"
+          SLACK_MESSAGE: "Tests failed. version=${{ needs.auto-test.outputs.latest }} Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
