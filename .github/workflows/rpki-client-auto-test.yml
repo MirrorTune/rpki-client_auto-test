@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   auto-test:
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
 
     outputs:
       run: ${{ steps.diff.outputs.run }}
