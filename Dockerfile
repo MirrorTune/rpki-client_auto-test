@@ -2,6 +2,7 @@ FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG RPKI_CLIENT_VERSION=9.6
+RUN echo "RPKI_CLIENT_VERSION=${RPKI_CLIENT_VERSION}"
 
 RUN apt-get update && \
     apt-get install -y \
