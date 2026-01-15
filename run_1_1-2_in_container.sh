@@ -9,6 +9,8 @@ BUILD_ARGS=()
 if [[ -n "${RPKI_CLIENT_VERSION:-}" ]]; then
   BUILD_ARGS+=(--build-arg "RPKI_CLIENT_VERSION=${RPKI_CLIENT_VERSION}")
 fi
+echo "[INFO] RPKI_CLIENT_VERSION=${RPKI_CLIENT_VERSION:-<empty>}"
+
 docker build "${BUILD_ARGS[@]}" -t rpki-client-test:latest "${SCRIPT_DIR}"
 
 echo "[INFO] コンテナ内で 1_1-2_check_rpki_client_version.sh を実行します..."
