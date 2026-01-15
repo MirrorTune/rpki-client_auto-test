@@ -87,6 +87,8 @@ jobs:
 
       - name: Run all run_*_in_container.sh in numeric order
         if: ${{ steps.diff.outputs.run == 'true' }}
+        env:
+          RPKI_CLIENT_VERSION: ${{ steps.latest.outputs.latest }}
         run: |
           set -euo pipefail
           mkdir -p logs
@@ -116,6 +118,7 @@ jobs:
           echo "${{ steps.latest.outputs.latest }}" > LAST_TESTED_VERSION
 
       - name: Create PR to update LAST_TESTED_VERSION
+        id: cpr
         if: ${{ steps.diff.outputs.run == 'true' }}
         uses: peter-evans/create-pull-request@v6
         with:
@@ -128,6 +131,29 @@ jobs:
           delete-branch: true
           add-paths: |
             LAST_TESTED_VERSION
+
+      - name: Auto-merge PR (update LAST_TESTED_VERSION into main)
+        if: ${{ steps.diff.outputs.run == 'true' && steps.cpr.outputs.pull-request-number != '' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = Number("${{ steps.cpr.outputs.pull-request-number }}");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            core.info(`Merging PR #${prNumber} into main...`);
+
+            try {
+              await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                merge_method: "squash"
+              });
+              core.info(`Merged PR #${prNumber} successfully.`);
+            } catch (e) {
+              core.setFailed(`Failed to merge PR #${prNumber}: ${e.message}`);
+            }
 
       - name: Create an issue on failure (notification inside GitHub)
         if: ${{ failure() }}
