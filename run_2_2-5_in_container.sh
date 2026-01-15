@@ -5,7 +5,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "[INFO] Docker イメージ rpki-client-test:latest をビルドします."
-docker build -t rpki-client-test:latest "${SCRIPT_DIR}"
+BUILD_ARGS=()
+if [[ -n "${RPKI_CLIENT_VERSION:-}" ]]; then
+  BUILD_ARGS+=(--build-arg "RPKI_CLIENT_VERSION=${RPKI_CLIENT_VERSION}")
+fi
+docker build "${BUILD_ARGS[@]}" -t rpki-client-test:latest "${SCRIPT_DIR}"
 
 echo "[INFO] コンテナ内で 2_2-5_check_reject_invalid_data.sh を実行します."
 
